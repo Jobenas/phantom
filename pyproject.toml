@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "phantom-browse"
+version = "0.1.0"
+description = "Stealth browser CLI that bypasses WAFs and bot detection"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Jorge Benas", email = "jobenas@gmail.com" },
+]
+keywords = ["browser", "stealth", "playwright", "automation", "scraping", "waf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "playwright>=1.40.0",
+    "playwright-stealth>=1.0.0",
+]
+
+[project.scripts]
+phantom = "phantom.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["phantom"]
+
+[project.urls]
+Homepage = "https://github.com/Jobenas/phantom"
+Repository = "https://github.com/Jobenas/phantom"
+Issues = "https://github.com/Jobenas/phantom/issues"
