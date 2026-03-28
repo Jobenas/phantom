@@ -11,6 +11,7 @@ from playwright.async_api import async_playwright
 
 from .actions import human_click, human_fill, human_type, human_wait
 from .engine import create_stealth_context, ensure_chromium
+from .ratelimit import enforce_rate_limit
 from .session import load_session, save_session
 
 logger = logging.getLogger("phantom")
@@ -47,6 +48,11 @@ class OrderedAction(argparse.Action):
 async def run(args: argparse.Namespace) -> dict:
     """Execute a stealth browse session."""
     ensure_chromium()
+
+    # Per-domain rate limiting
+    waited = enforce_rate_limit(args.url, min_delay_s=args.min_delay)
+    if waited > 0:
+        logger.info("Rate limited: waited %.1fs", waited)
 
     async with async_playwright() as pw:
         storage_state = None
@@ -173,6 +179,8 @@ def main():
                         help="browser timezone (default: America/New_York)")
     parser.add_argument("--viewport", nargs=2, type=int, default=[1366, 768],
                         metavar=("W", "H"), help="viewport size (default: 1366 768)")
+    parser.add_argument("--min-delay", type=float, default=2.0,
+                        help="minimum seconds between requests to same domain (default: 2.0, 0 to disable)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="enable debug logging")
     parser.add_argument("--version", action="version",

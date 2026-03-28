@@ -98,6 +98,7 @@ phantom https://app.com \
 --locale LOCALE     Browser locale (default: en-US)
 --timezone TZ       Browser timezone (default: America/New_York)
 --viewport W H      Viewport size (default: 1366 768)
+--min-delay SECS    Min seconds between requests to same domain (default: 2.0, 0 to disable)
 --verbose           Debug logging
 ```
 
@@ -127,6 +128,42 @@ data = json.loads(result.stdout)
 if data["ok"]:
     page_text = data["text"]
 ```
+
+## Rate Limiting
+
+Phantom enforces a **2-second per-domain cooldown** by default to prevent abuse. If you call Phantom twice against the same domain in quick succession, the second call waits automatically.
+
+```bash
+phantom https://example.com --json         # goes through immediately
+phantom https://example.com --json         # waits ~2s before requesting
+
+phantom https://other-site.com --json      # different domain, no wait
+```
+
+Adjust with `--min-delay`:
+
+```bash
+phantom https://example.com --min-delay 5   # 5s between requests (be polite)
+phantom https://localhost:3000 --min-delay 0 # disable for local/owned apps
+```
+
+## Responsible Use
+
+Phantom is built for legitimate purposes: testing your own apps, accessing data you're authorized to retrieve, and building AI agents that browse the web respectfully.
+
+**Do:**
+- Test your own web applications
+- Access sites and data you have permission to use
+- Build agents that respect `robots.txt` and rate limits
+- Use the default rate limiting
+
+**Don't:**
+- Scrape sites that prohibit it in their ToS
+- Bypass authentication you're not authorized to use
+- Use Phantom to overwhelm or degrade services
+- Disable rate limiting against sites you don't own
+
+The built-in rate limiter exists for a reason. If you find yourself setting `--min-delay 0` against someone else's site, reconsider.
 
 ## License
 
