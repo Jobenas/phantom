@@ -34,7 +34,7 @@ async def _exec_screenshot(page: Page, params: dict) -> dict:
     """Take a screenshot."""
     path = params.get("path", "/tmp/phantom_screenshot.png")
     try:
-        await page.screenshot(path=path, full_page=params.get("full_page", True))
+        await page.screenshot(path=path, full_page=params.get("full_page", False))
         return {"ok": True, "action": "screenshot", "path": path}
     except Exception as e:
         return {"ok": False, "action": "screenshot", "error": str(e)}

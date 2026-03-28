@@ -169,7 +169,7 @@ async def run(args: argparse.Namespace) -> dict:
 
         if args.screenshot:
             try:
-                await page.screenshot(path=args.screenshot, full_page=True)
+                await page.screenshot(path=args.screenshot, full_page=args.full_page)
             except Exception as e:
                 logger.warning("Screenshot failed: %s", e)
 
@@ -215,7 +215,9 @@ def main():
     parser.add_argument("--json", dest="json_output", action="store_true",
                         help="output as structured JSON (recommended for agents)")
     parser.add_argument("--screenshot", metavar="PATH",
-                        help="save full-page screenshot to file")
+                        help="save screenshot to file (viewport only by default)")
+    parser.add_argument("--full-page", action="store_true", default=False,
+                        help="capture full scrollable page in screenshot (default: viewport only)")
     parser.add_argument("--session", metavar="NAME",
                         help="named session for cookie persistence")
     parser.add_argument("--timeout", type=int, default=30000,
