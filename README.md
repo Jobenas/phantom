@@ -86,10 +86,57 @@ phantom https://app.com \
   --json
 ```
 
+## Multi-Step Plans
+
+For complex flows (login, navigate, interact, capture), use `--actions` with a JSON plan file:
+
+```bash
+phantom --actions plan.json --json
+phantom https://app.com --actions plan.json --session myapp --json
+```
+
+Plan format — array of steps, each with `action`, `params`, and optional `description`/`critical`:
+
+```json
+[
+  {"action": "goto", "params": {"url": "https://app.com/login"}, "description": "Open login page"},
+  {"action": "fill", "params": {"selector": "input[name=email]", "value": "me@x.com"}},
+  {"action": "fill", "params": {"selector": "input[name=password]", "value": "secret"}},
+  {"action": "click", "params": {"selector": "button[type=submit]"}, "critical": true},
+  {"action": "wait_for", "params": {"selector": ".dashboard"}, "critical": true},
+  {"action": "screenshot", "params": {"path": "/tmp/dashboard.png"}},
+  {"action": "goto", "params": {"url": "https://app.com/profile"}},
+  {"action": "get_text", "params": {"selector": ".profile-info"}}
+]
+```
+
+If a step marked `critical: true` fails, remaining steps are skipped.
+
+**Supported actions:** `goto`, `click`, `fill`, `type_text`, `wait_for`, `wait_for_spa_idle`, `screenshot`, `get_text`, `evaluate`, `select_option`, `press_key`, `login`, `assert_visible`, `assert_text_contains`, `assert_url_contains`, `get_element_count`, `get_inner_html`, `get_table_data`
+
+Multi-step output:
+
+```json
+{
+  "ok": true,
+  "steps_total": 8,
+  "steps_executed": 8,
+  "steps_passed": 8,
+  "aborted_at": null,
+  "url": "https://app.com/profile",
+  "steps": [
+    {"ok": true, "action": "goto", "description": "Open login page", "url": "https://app.com/login"},
+    {"ok": true, "action": "fill", "description": "fill"},
+    ...
+  ]
+}
+```
+
 ## Options
 
 ```
 --json              Structured JSON output
+--actions FILE      JSON file with multi-step action plan
 --screenshot PATH   Save full-page screenshot
 --session NAME      Cookie persistence (~/.phantom/sessions/)
 --timeout MS        Navigation timeout (default: 30000)

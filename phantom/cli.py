@@ -12,6 +12,7 @@ from playwright.async_api import async_playwright
 from .actions import human_click, human_fill, human_type, human_wait
 from .engine import create_stealth_context, ensure_chromium
 from .ratelimit import enforce_rate_limit
+from .runner import load_plan, run_plan
 from .session import load_session, save_session
 
 logger = logging.getLogger("phantom")
@@ -45,6 +46,54 @@ class OrderedAction(argparse.Action):
 # ---------------------------------------------------------------------------
 # Core
 # ---------------------------------------------------------------------------
+async def run_multi(args: argparse.Namespace) -> dict:
+    """Execute a multi-step plan from a JSON file."""
+    ensure_chromium()
+    plan = load_plan(args.actions)
+
+    async with async_playwright() as pw:
+        storage_state = None
+        if args.session:
+            storage_state = load_session(args.session)
+
+        browser, context = await create_stealth_context(
+            pw,
+            locale=args.locale,
+            timezone=args.timezone,
+            viewport=tuple(args.viewport),
+            headless=args.headless if args.headless is not None else None,
+            storage_state=storage_state,
+        )
+
+        page = await context.new_page()
+
+        # Capture console errors
+        console_errors: list[str] = []
+        page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+
+        # Navigate to initial URL if provided
+        if args.url:
+            enforce_rate_limit(args.url, min_delay_s=args.min_delay)
+            try:
+                await page.goto(args.url, wait_until="domcontentloaded", timeout=args.timeout)
+                await page.wait_for_timeout(2000)
+            except Exception as e:
+                await browser.close()
+                return {"ok": False, "url": args.url, "error": f"Navigation failed: {e}"}
+
+        # Run the plan
+        result = await run_plan(page, plan)
+        result["console_errors"] = console_errors
+
+        # Save session
+        if args.session:
+            await save_session(context, args.session)
+            result["session_restored"] = storage_state is not None
+
+        await browser.close()
+        return result
+
+
 async def run(args: argparse.Namespace) -> dict:
     """Execute a stealth browse session."""
     ensure_chromium()
@@ -158,9 +207,11 @@ def main():
   phantom https://example.com --screenshot shot.png    # take screenshot
   phantom https://app.com --session myapp --json       # with session persistence
   phantom https://app.com --fill "input=val" --click "button" --json
+  phantom --actions plan.json --json                   # multi-step plan
+  phantom https://app.com --actions plan.json --json   # plan with initial URL
 """,
     )
-    parser.add_argument("url", help="URL to navigate to")
+    parser.add_argument("url", nargs="?", default=None, help="URL to navigate to")
     parser.add_argument("--json", dest="json_output", action="store_true",
                         help="output as structured JSON (recommended for agents)")
     parser.add_argument("--screenshot", metavar="PATH",
@@ -179,6 +230,8 @@ def main():
                         help="browser timezone (default: America/New_York)")
     parser.add_argument("--viewport", nargs=2, type=int, default=[1366, 768],
                         metavar=("W", "H"), help="viewport size (default: 1366 768)")
+    parser.add_argument("--actions", metavar="FILE",
+                        help="JSON file with multi-step action plan")
     parser.add_argument("--min-delay", type=float, default=2.0,
                         help="minimum seconds between requests to same domain (default: 2.0, 0 to disable)")
     parser.add_argument("--verbose", "-v", action="store_true",
@@ -201,12 +254,19 @@ def main():
     if args.headed:
         args.headless = False
 
+    # Validate: need either url or --actions
+    if not args.url and not args.actions:
+        parser.error("either url or --actions is required")
+
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(name)s: %(message)s")
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    result = asyncio.run(run(args))
+    if args.actions:
+        result = asyncio.run(run_multi(args))
+    else:
+        result = asyncio.run(run(args))
 
     if args.json_output:
         print(json.dumps(result, indent=2, ensure_ascii=False))
