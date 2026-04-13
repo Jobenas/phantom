@@ -5,7 +5,10 @@ import json
 import logging
 from pathlib import Path
 
-from playwright.async_api import Page
+try:
+    from patchright.async_api import Page
+except ImportError:
+    from playwright.async_api import Page
 
 from .actions import human_click, human_fill, human_type, human_wait
 

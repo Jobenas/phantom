@@ -5,7 +5,10 @@ import json
 import logging
 from pathlib import Path
 
-from playwright.async_api import BrowserContext
+try:
+    from patchright.async_api import BrowserContext
+except ImportError:
+    from playwright.async_api import BrowserContext
 
 logger = logging.getLogger("phantom")
 

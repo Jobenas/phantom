@@ -1,4 +1,13 @@
-"""Stealth browser engine — Playwright with anti-detection patches."""
+"""Stealth browser engine — Patchright with anti-detection patches.
+
+Uses Patchright (patched Playwright fork) to bypass CDP detection used by
+Google, LinkedIn, Cloudflare, and other anti-bot systems. Falls back to
+standard Playwright if Patchright is not installed.
+
+When no display is available (headless server), automatically starts a
+virtual display (Xvfb) and runs in headed mode — this avoids the
+"HeadlessChrome" User-Agent leak that triggers bot detection.
+"""
 from __future__ import annotations
 
 import json
@@ -8,16 +17,31 @@ import subprocess
 import sys
 from pathlib import Path
 
-from playwright.async_api import Browser, BrowserContext, Playwright
-
 try:
-    from playwright_stealth import Stealth
+    from patchright.async_api import Browser, BrowserContext, Playwright
+    _USING_PATCHRIGHT = True
 except ImportError:
-    Stealth = None
+    from playwright.async_api import Browser, BrowserContext, Playwright
+    _USING_PATCHRIGHT = False
 
 logger = logging.getLogger("phantom")
 
-WEBDRIVER_SPOOF = 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+# Prototype-chain webdriver removal (beats the "new" detection method)
+WEBDRIVER_SPOOF = """
+(() => {
+    const proto = Object.getPrototypeOf(navigator);
+    const desc = Object.getOwnPropertyDescriptor(proto, 'webdriver');
+    if (desc) {
+        Object.defineProperty(proto, 'webdriver', {
+            get: () => false, configurable: true, enumerable: true,
+        });
+    } else {
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined, configurable: true,
+        });
+    }
+})();
+"""
 
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -29,16 +53,18 @@ TYPE_DELAY_MS = 80
 CLICK_BASE_DELAY_MS = 200
 CLICK_JITTER_MS = 50
 
+# Virtual display singleton
+_virtual_display = None
+
 
 def _find_chromium() -> str | None:
-    """Find a Chromium binary from Playwright's cache."""
+    """Find a Chromium binary from Playwright/Patchright cache."""
     cache = Path.home() / ".cache" / "ms-playwright"
     if not cache.exists():
         return None
     for chrome in sorted(cache.glob("chromium-*/chrome-linux64/chrome"), reverse=True):
         if chrome.exists():
             return str(chrome)
-    # macOS path
     for chrome in sorted(cache.glob("chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium"), reverse=True):
         if chrome.exists():
             return str(chrome)
@@ -50,14 +76,35 @@ def _has_display() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
+def _ensure_virtual_display() -> None:
+    """Start a virtual display (Xvfb) if no display is available.
+
+    This allows running in headed mode on headless servers, which avoids
+    the "HeadlessChrome" UA string that triggers bot detection.
+    """
+    global _virtual_display
+    if _has_display() or _virtual_display is not None:
+        return
+    try:
+        from pyvirtualdisplay import Display
+        _virtual_display = Display(visible=False, size=(1366, 768))
+        _virtual_display.start()
+        logger.info("Virtual display started (Xvfb) — headed mode enabled")
+    except ImportError:
+        logger.debug("pyvirtualdisplay not installed — using headless mode")
+    except Exception as e:
+        logger.warning("Failed to start virtual display: %s — using headless mode", e)
+
+
 def ensure_chromium() -> None:
-    """Install Chromium via Playwright if not found."""
+    """Install Chromium via Patchright/Playwright if not found."""
     if _find_chromium():
         return
-    logger.info("Chromium not found — installing via Playwright...")
+    module = "patchright" if _USING_PATCHRIGHT else "playwright"
+    logger.info("Chromium not found — installing via %s...", module)
     try:
         subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
+            [sys.executable, "-m", module, "install", "chromium"],
             check=True,
             capture_output=True,
             text=True,
@@ -66,7 +113,7 @@ def ensure_chromium() -> None:
     except subprocess.CalledProcessError as e:
         logger.error("Failed to install Chromium: %s", e.stderr)
         raise RuntimeError(
-            "Could not install Chromium. Run manually: python -m playwright install chromium"
+            f"Could not install Chromium. Run manually: python -m {module} install chromium"
         ) from e
 
 
@@ -82,21 +129,34 @@ async def create_stealth_context(
 ) -> tuple[Browser, BrowserContext]:
     """Launch stealth Chromium and return (browser, context).
 
-    Anti-detection stack:
-    - playwright-stealth patches (if installed)
-    - navigator.webdriver spoofing
+    Anti-detection stack (when using Patchright):
+    - CDP leak patching (Runtime.Enable isolated, no console API)
+    - navigator.webdriver prototype-chain spoofing
     - --disable-blink-features=AutomationControlled
     - Realistic fingerprint (UA, locale, timezone, viewport)
-    - Headed mode via Xvfb when display available
-    """
-    if Stealth is not None:
-        stealth = Stealth()
-        stealth.hook_playwright_context(pw)
-    else:
-        logger.warning("playwright-stealth not installed — running without stealth patches")
+    - Headed mode via Xvfb on headless servers (avoids HeadlessChrome UA)
 
+    Falls back to playwright-stealth patches if using standard Playwright.
+    """
+    # Apply playwright-stealth only if NOT using patchright (patchright handles CDP natively)
+    if not _USING_PATCHRIGHT:
+        try:
+            from playwright_stealth import Stealth
+            stealth = Stealth()
+            stealth.hook_playwright_context(pw)
+        except ImportError:
+            logger.warning("Neither patchright nor playwright-stealth available — limited stealth")
+
+    # Determine headed/headless mode
     if headless is None:
+        # Prefer headed mode (better stealth) — start virtual display if needed
+        _ensure_virtual_display()
         headless = not _has_display()
+
+    if not headless:
+        logger.debug("Running in headed mode (better stealth)")
+    else:
+        logger.debug("Running in headless mode (virtual display unavailable)")
 
     chromium_path = _find_chromium()
     launch_kwargs: dict = {

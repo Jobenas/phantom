@@ -1,7 +1,10 @@
 """Human-like browser interaction helpers."""
 from __future__ import annotations
 
-from playwright.async_api import Page
+try:
+    from patchright.async_api import Page
+except ImportError:
+    from playwright.async_api import Page
 
 from .engine import CLICK_BASE_DELAY_MS, CLICK_JITTER_MS, TYPE_DELAY_MS
 

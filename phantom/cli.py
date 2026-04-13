@@ -7,7 +7,10 @@ import json
 import logging
 import sys
 
-from playwright.async_api import async_playwright
+try:
+    from patchright.async_api import async_playwright
+except ImportError:
+    from playwright.async_api import async_playwright
 
 from .actions import human_click, human_fill, human_type, human_wait
 from .engine import create_stealth_context, ensure_chromium

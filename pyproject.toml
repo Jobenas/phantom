@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "phantom-browse"
-version = "0.3.1"
-description = "Stealth browser CLI that bypasses WAFs and bot detection"
+version = "0.4.0"
+description = "Stealth browser CLI that bypasses WAFs and bot detection — powered by Patchright"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -27,9 +27,12 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-    "playwright>=1.40.0",
+    "patchright>=1.50.0",
     "playwright-stealth>=1.0.0",
 ]
+
+[project.optional-dependencies]
+xvfb = ["pyvirtualdisplay>=3.0"]
 
 [project.scripts]
 phantom = "phantom.cli:main"
