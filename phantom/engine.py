@@ -147,16 +147,15 @@ async def create_stealth_context(
         except ImportError:
             logger.warning("Neither patchright nor playwright-stealth available — limited stealth")
 
-    # Determine headed/headless mode
-    if headless is None:
-        # Prefer headed mode (better stealth) — start virtual display if needed
-        _ensure_virtual_display()
-        headless = not _has_display()
-
-    if not headless:
-        logger.debug("Running in headed mode (better stealth)")
-    else:
-        logger.debug("Running in headless mode (virtual display unavailable)")
+    # Always prefer headed mode (better stealth) — start virtual display if needed.
+    # Even if --headless was passed, we use Xvfb + headed to avoid HeadlessChrome UA.
+    _ensure_virtual_display()
+    if _has_display():
+        headless = False
+        logger.debug("Running in headed mode via virtual display (best stealth)")
+    elif headless is None or headless is True:
+        headless = True
+        logger.debug("Running in headless mode (no virtual display available)")
 
     chromium_path = _find_chromium()
     launch_kwargs: dict = {
