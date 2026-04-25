@@ -10,7 +10,13 @@ try:
 except ImportError:
     from playwright.async_api import Page
 
-from .actions import human_click, human_fill, human_type, human_wait
+from .actions import (
+    human_click,
+    human_fill,
+    human_set_input_files,
+    human_type,
+    human_wait,
+)
 
 logger = logging.getLogger("phantom")
 
@@ -83,6 +89,22 @@ async def _exec_fill(page: Page, params: dict) -> dict:
 async def _exec_type(page: Page, params: dict) -> dict:
     """Type into an input."""
     return await human_type(page, params["selector"], params["value"])
+
+
+async def _exec_set_input_files(page: Page, params: dict) -> dict:
+    """Attach files to an `<input type=file>`.
+
+    `files` may be a string path or a list of paths. `path` is also
+    accepted as an alias for single-file ergonomics.
+    """
+    selector = params["selector"]
+    files = params.get("files") or params.get("path")
+    if files is None:
+        return {"ok": False, "action": "set_input_files",
+                "error": "Missing 'files' (or 'path') param"}
+    return await human_set_input_files(
+        page, selector, files, timeout_ms=params.get("timeout_ms", 10000),
+    )
 
 
 async def _exec_select_option(page: Page, params: dict) -> dict:
@@ -256,6 +278,7 @@ async def execute_step(page: Page, step: dict, step_index: int) -> dict:
         "get_text": lambda: _exec_get_text(page, params),
         "evaluate": lambda: _exec_evaluate(page, params),
         "select_option": lambda: _exec_select_option(page, params),
+        "set_input_files": lambda: _exec_set_input_files(page, params),
         "press_key": lambda: _exec_press_key(page, params),
         "assert_visible": lambda: _exec_assert_visible(page, params),
         "assert_text_contains": lambda: _exec_assert_text_contains(page, params),
