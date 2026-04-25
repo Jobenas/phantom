@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "phantom-browse"
-version = "0.4.1"
+version = "0.4.2"
 description = "Stealth browser CLI that bypasses WAFs and bot detection — powered by Patchright"
 readme = "README.md"
 license = "MIT"

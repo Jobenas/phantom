@@ -54,6 +54,34 @@ async def human_type(page: Page, selector: str, value: str) -> dict:
         return {"ok": False, "action": "type", "selector": selector, "error": str(e)}
 
 
+async def human_set_input_files(
+    page: Page, selector: str, files: str | list[str], timeout_ms: int = 10000,
+) -> dict:
+    """Attach one or more files to a `<input type=file>` element.
+
+    Accepts a single path or a list (for inputs with `multiple`). The
+    input does NOT need to be visible — modern UIs commonly hide the
+    real input behind a styled button, and Playwright/Patchright handles
+    that case natively.
+    """
+    paths = [files] if isinstance(files, str) else list(files)
+    try:
+        el = page.locator(selector).nth(0)
+        # Use `attached` rather than `visible`; file inputs are often hidden.
+        await el.wait_for(state="attached", timeout=timeout_ms)
+        await el.set_input_files(paths)
+        await page.wait_for_timeout(CLICK_BASE_DELAY_MS)
+        return {
+            "ok": True, "action": "set_input_files",
+            "selector": selector, "files": paths,
+        }
+    except Exception as e:
+        return {
+            "ok": False, "action": "set_input_files",
+            "selector": selector, "files": paths, "error": str(e),
+        }
+
+
 async def human_wait(page: Page, selector: str, timeout_ms: int = 10000) -> dict:
     """Wait for an element to appear."""
     try:

@@ -112,7 +112,19 @@ Plan format — array of steps, each with `action`, `params`, and optional `desc
 
 If a step marked `critical: true` fails, remaining steps are skipped.
 
-**Supported actions:** `goto`, `click`, `fill`, `type_text`, `wait_for`, `wait_for_spa_idle`, `screenshot`, `get_text`, `evaluate`, `select_option`, `press_key`, `login`, `assert_visible`, `assert_text_contains`, `assert_url_contains`, `get_element_count`, `get_inner_html`, `get_table_data`
+**Supported actions:** `goto`, `click`, `fill`, `type_text`, `wait_for`, `wait_for_spa_idle`, `screenshot`, `get_text`, `evaluate`, `select_option`, `set_input_files`, `press_key`, `login`, `assert_visible`, `assert_text_contains`, `assert_url_contains`, `get_element_count`, `get_inner_html`, `get_table_data`
+
+### File uploads (`set_input_files`)
+
+Attach a file (or list of files) to a `<input type=file>` — works even
+when the input is hidden behind a styled button:
+
+```json
+{"action": "set_input_files", "params": {"selector": "input[type=file]", "files": "/tmp/data.xlsx"}}
+{"action": "set_input_files", "params": {"selector": "#multi", "files": ["/tmp/a.png", "/tmp/b.png"]}}
+```
+
+`path` is accepted as an alias for `files` when uploading a single file.
 
 Multi-step output:
 
